@@ -23,7 +23,8 @@ def create_tables():
                 budget REAL NOT NULL,
                 travelers INTEGER NOT NULL,
                 places TEXT,
-                activities TEXT
+                activities TEXT,
+                user_id INTEGER REFERENCES users(id)
             )
         """)
         connection.commit()

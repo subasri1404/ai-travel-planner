@@ -12,21 +12,20 @@ DB_PATH = (
 
 
 # 1. Save Trip
-def save_trip(trip):
+
+
+def save_trip(trip, user_id):
     connection = sqlite3.connect(DB_PATH)
 
     try:
+        
         cursor = connection.execute(
             """
             INSERT INTO trips (
-                destination,
-                days,
-                budget,
-                travelers,
-                places,
-                activities
+                destination, days, budget, travelers,
+                places, activities, user_id
             )
-            VALUES (?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 trip["destination"],
@@ -34,9 +33,11 @@ def save_trip(trip):
                 trip["budget"],
                 trip["travelers"],
                 json.dumps(trip["places"]),
-                json.dumps(trip["activities"])
+                json.dumps(trip["activities"]),
+                user_id
             )
         )
+
 
         connection.commit()
         return cursor.lastrowid
@@ -45,29 +46,25 @@ def save_trip(trip):
         connection.close()
 
 
+
 # 2. Get All Saved Trips
-def get_all_trips():
+
+def get_all_trips(user_id):
     connection = sqlite3.connect(DB_PATH)
     connection.row_factory = sqlite3.Row
 
     try:
         rows = connection.execute(
-            "SELECT * FROM trips ORDER BY id DESC"
+            "SELECT * FROM trips WHERE user_id = ? ORDER BY id DESC",
+            (user_id,)
         ).fetchall()
 
         trips = []
 
         for row in rows:
             trip = dict(row)
-
-            trip["places"] = json.loads(
-                trip["places"] or "[]"
-            )
-
-            trip["activities"] = json.loads(
-                trip["activities"] or "[]"
-            )
-
+            trip["places"] = json.loads(trip["places"] or "[]")
+            trip["activities"] = json.loads(trip["activities"] or "[]")
             trips.append(trip)
 
         return trips
@@ -77,8 +74,9 @@ def get_all_trips():
 
 
         
-def update_trip(trip_id, trip):
+def update_trip(trip_id, trip, user_id):
     connection = sqlite3.connect(DB_PATH)
+
     try:
         cursor = connection.execute(
             """
@@ -89,7 +87,7 @@ def update_trip(trip_id, trip):
                 travelers = ?,
                 places = ?,
                 activities = ?
-            WHERE id = ?
+            WHERE id = ? AND user_id = ?
             """,
             (
                 trip["destination"],
@@ -98,24 +96,29 @@ def update_trip(trip_id, trip):
                 trip["travelers"],
                 json.dumps(trip["places"]),
                 json.dumps(trip["activities"]),
-                trip_id
+                trip_id,
+                user_id
             )
         )
+
         connection.commit()
         return cursor.rowcount > 0
+
     finally:
         connection.close()
 
-
-def delete_trip(trip_id):
+def delete_trip(trip_id, user_id):
     connection = sqlite3.connect(DB_PATH)
+
     try:
         cursor = connection.execute(
-            "DELETE FROM trips WHERE id = ?",
-            (trip_id,)
+            "DELETE FROM trips WHERE id = ? AND user_id = ?",
+            (trip_id, user_id)
         )
+
         connection.commit()
         return cursor.rowcount > 0
+
     finally:
         connection.close()
 

@@ -1,8 +1,12 @@
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import List
+
+
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from services.token_service import verify_access_token
 
 from services.travel_planner import generate_travel_plan
 from services.trip_storage import (
@@ -10,6 +14,13 @@ from services.trip_storage import (
     get_all_trips,
     update_trip,
     delete_trip
+)
+
+from routes.auth import router as auth_router
+
+from backend.database.database import (
+    create_users_table,
+    add_user_id_to_trips
 )
 
 
@@ -20,6 +31,33 @@ app = FastAPI(
     version="1.0.0"
 )
 
+
+security = HTTPBearer()
+
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+):
+    token = credentials.credentials
+    user_id = verify_access_token(token)
+
+    if user_id is None:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or expired token"
+        )
+
+    return user_id
+
+
+app.include_router(auth_router)
+
+
+
+# Create users table when backend starts
+@app.on_event("startup")
+def startup():
+    create_users_table()
+    add_user_id_to_trips()
 
 # 2. Allow Frontend Connections
 app.add_middleware(
@@ -56,7 +94,11 @@ def home():
 
 # 5. Generate and Save Travel Plan
 @app.post("/plan-trip")
-def plan_trip(request: TravelRequest):
+def plan_trip(
+    request: TravelRequest,
+    user_id: int = Depends(get_current_user)
+):
+    
     try:
         result = generate_travel_plan(
             destination=request.destination,
@@ -67,7 +109,7 @@ def plan_trip(request: TravelRequest):
             activities=request.activities
         )
 
-        trip_id = save_trip(result)
+        trip_id = save_trip(result, user_id)
         result["trip_id"] = trip_id
 
         print("FINAL API RESPONSE:", result)
@@ -89,10 +131,10 @@ def plan_trip(request: TravelRequest):
 
 # 6. Get All Saved Trips
 @app.get("/trips")
-def get_trips():
+def get_trips(user_id: int = Depends(get_current_user)):
     try:
         return {
-            "trips": get_all_trips()
+            "trips": get_all_trips(user_id)
         }
     except Exception as error:
         print("GET TRIPS ERROR:", str(error))
@@ -104,8 +146,13 @@ def get_trips():
 
 
 # Update an existing trip
+
 @app.put("/trips/{trip_id}")
-def edit_trip(trip_id: int, request: TravelRequest):
+def edit_trip(
+    trip_id: int,
+    request: TravelRequest,
+    user_id: int = Depends(get_current_user)
+):
     try:
         result = generate_travel_plan(
             destination=request.destination,
@@ -116,7 +163,7 @@ def edit_trip(trip_id: int, request: TravelRequest):
             activities=request.activities
         )
 
-        updated = update_trip(trip_id, result)
+        updated = update_trip(trip_id, result, user_id)
 
         if not updated:
             raise HTTPException(
@@ -128,13 +175,20 @@ def edit_trip(trip_id: int, request: TravelRequest):
         return result
 
     except ValueError as error:
-        raise HTTPException(status_code=400, detail=str(error))
+        raise HTTPException(
+            status_code=400,
+            detail=str(error)
+        )
 
 
 # Delete an existing trip
+
 @app.delete("/trips/{trip_id}")
-def remove_trip(trip_id: int):
-    deleted = delete_trip(trip_id)
+def remove_trip(
+    trip_id: int,
+    user_id: int = Depends(get_current_user)
+):
+    deleted = delete_trip(trip_id, user_id)
 
     if not deleted:
         raise HTTPException(
