@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 
-from backend.schemas.auth import RegisterRequest, LoginRequest, UserResponse
+from schemas.auth import RegisterRequest, LoginRequest, UserResponse
 from backend.services.auth_service import register_user, login_user
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
