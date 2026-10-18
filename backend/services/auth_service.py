@@ -38,7 +38,7 @@ def create_access_token(user_id: int, email: str) -> str:
     )
 
 
-from backend.database.database import get_db_connection
+from database.database import get_db_connection
 
 
 # Secure password hashing using PBKDF2
