@@ -18,10 +18,13 @@ from services.trip_storage import (
 
 from routes.auth import router as auth_router
 
+
 from database.database import (
+    create_tables,
     create_users_table,
     add_user_id_to_trips
 )
+
 
 
 # 1. Create FastAPI Application
@@ -56,6 +59,7 @@ app.include_router(auth_router)
 # Create users table when backend starts
 @app.on_event("startup")
 def startup():
+    create_tables()
     create_users_table()
     add_user_id_to_trips()
 
