@@ -27,6 +27,30 @@ def create_users_table():
     finally:
         connection.close()
 
+
+
+        
+def create_tables():
+    connection = get_db_connection()
+
+    try:
+        connection.execute("""
+            CREATE TABLE IF NOT EXISTS trips (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                destination TEXT NOT NULL,
+                days INTEGER NOT NULL,
+                budget REAL NOT NULL,
+                travelers INTEGER NOT NULL,
+                places TEXT,
+                activities TEXT,
+                user_id INTEGER REFERENCES users(id)
+            )
+        """)
+        connection.commit()
+    finally:
+        connection.close()
+
+
         
 def add_user_id_to_trips():
     connection = get_db_connection()
