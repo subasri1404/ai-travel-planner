@@ -18,7 +18,7 @@ from services.trip_storage import (
 
 from routes.auth import router as auth_router
 
-from backend.database.database import (
+from database.database import (
     create_users_table,
     add_user_id_to_trips
 )
