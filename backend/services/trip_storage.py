@@ -1,21 +1,14 @@
 
 import json
-import sqlite3
-from pathlib import Path
 
-# Existing database path
-DB_PATH = (
-    Path(__file__).resolve().parents[2]
-    / "database"
-    / "travel_planner.db"
-)
+from database.database import get_db_connection
 
 
 # 1. Save Trip
 
 
-def save_trip(trip, user_id):
-    connection = sqlite3.connect(DB_PATH)
+def save_trip(trip, user_id, idempotency_key=None):
+    connection = get_db_connection()
 
     try:
         
@@ -23,9 +16,10 @@ def save_trip(trip, user_id):
             """
             INSERT INTO trips (
                 destination, days, budget, travelers,
-                places, activities, user_id
+                places, activities, user_id, idempotency_key
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(user_id, idempotency_key) DO NOTHING
             """,
             (
                 trip["destination"],
@@ -34,12 +28,22 @@ def save_trip(trip, user_id):
                 trip["travelers"],
                 json.dumps(trip["places"]),
                 json.dumps(trip["activities"]),
-                user_id
+                user_id,
+                idempotency_key
             )
         )
 
-
         connection.commit()
+        if cursor.rowcount == 0:
+            row = connection.execute(
+                """
+                SELECT id FROM trips
+                WHERE user_id = ? AND idempotency_key = ?
+                """,
+                (user_id, idempotency_key)
+            ).fetchone()
+            return row["id"]
+
         return cursor.lastrowid
 
     finally:
@@ -50,12 +54,17 @@ def save_trip(trip, user_id):
 # 2. Get All Saved Trips
 
 def get_all_trips(user_id):
-    connection = sqlite3.connect(DB_PATH)
-    connection.row_factory = sqlite3.Row
+    connection = get_db_connection()
 
     try:
         rows = connection.execute(
-            "SELECT * FROM trips WHERE user_id = ? ORDER BY id DESC",
+            """
+            SELECT id, destination, days, budget, travelers,
+                   places, activities, user_id
+            FROM trips
+            WHERE user_id = ?
+            ORDER BY id DESC
+            """,
             (user_id,)
         ).fetchall()
 
@@ -75,7 +84,7 @@ def get_all_trips(user_id):
 
         
 def update_trip(trip_id, trip, user_id):
-    connection = sqlite3.connect(DB_PATH)
+    connection = get_db_connection()
 
     try:
         cursor = connection.execute(
@@ -108,7 +117,7 @@ def update_trip(trip_id, trip, user_id):
         connection.close()
 
 def delete_trip(trip_id, user_id):
-    connection = sqlite3.connect(DB_PATH)
+    connection = get_db_connection()
 
     try:
         cursor = connection.execute(
@@ -121,4 +130,3 @@ def delete_trip(trip_id, user_id):
 
     finally:
         connection.close()
-

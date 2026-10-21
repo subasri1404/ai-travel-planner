@@ -1,9 +1,14 @@
 
-from fastapi import FastAPI, HTTPException, Depends
+import os
+from pathlib import Path
+
+from dotenv import load_dotenv
+load_dotenv(Path(__file__).resolve().parent / ".env")
+
+from fastapi import FastAPI, HTTPException, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import List
-
 
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from services.token_service import verify_access_token
@@ -22,9 +27,9 @@ from routes.auth import router as auth_router
 from database.database import (
     create_tables,
     create_users_table,
-    add_user_id_to_trips
+    add_user_id_to_trips,
+    add_idempotency_key_to_trips
 )
-
 
 
 # 1. Create FastAPI Application
@@ -35,11 +40,17 @@ app = FastAPI(
 )
 
 
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)
 
 def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security)
+    credentials: HTTPAuthorizationCredentials | None = Depends(security)
 ):
+    if credentials is None:
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication credentials are required"
+        )
+
     token = credentials.credentials
     user_id = verify_access_token(token)
 
@@ -59,19 +70,32 @@ app.include_router(auth_router)
 # Create users table when backend starts
 @app.on_event("startup")
 def startup():
-    create_tables()
     create_users_table()
+    create_tables()
     add_user_id_to_trips()
+    add_idempotency_key_to_trips()
 
 # 2. Allow Frontend Connections
+default_origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+configured_origins = os.getenv("CORS_ORIGINS")
+allowed_origins = [
+    origin.strip().rstrip("/")
+    for origin in (
+        configured_origins.split(",")
+        if configured_origins
+        else default_origins
+    )
+    if origin.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:3000",
-        "http://127.0.0.1:3000"
-    ],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"]
@@ -100,7 +124,12 @@ def home():
 @app.post("/plan-trip")
 def plan_trip(
     request: TravelRequest,
-    user_id: int = Depends(get_current_user)
+    user_id: int = Depends(get_current_user),
+    idempotency_key: str | None = Header(
+        default=None,
+        min_length=1,
+        max_length=255
+    )
 ):
     
     try:
@@ -113,7 +142,7 @@ def plan_trip(
             activities=request.activities
         )
 
-        trip_id = save_trip(result, user_id)
+        trip_id = save_trip(result, user_id, idempotency_key)
         result["trip_id"] = trip_id
 
         print("FINAL API RESPONSE:", result)

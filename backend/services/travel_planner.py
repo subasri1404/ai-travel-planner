@@ -1,6 +1,50 @@
 
 # AI TRAVEL PLANNER - TRAVEL PLANNER SERVICE
 
+DESTINATION_SUGGESTIONS = {
+    "ooty": [
+        {
+            "place": "Ooty Botanical Garden",
+            "activity": "Walk through the botanical gardens",
+        },
+        {
+            "place": "Ooty Lake",
+            "activity": "Explore the lakeside",
+        },
+        {
+            "place": "Doddabetta Peak",
+            "activity": "Take in the hilltop views",
+        },
+        {
+            "place": "Ooty Rose Garden",
+            "activity": "Walk through the rose garden",
+        },
+        {
+            "place": "Ooty Tea Factory",
+            "activity": "Learn about Nilgiri tea production",
+        },
+        {
+            "place": "Pine Forest, Ooty",
+            "activity": "Walk among the pine trees",
+        },
+    ],
+}
+
+GENERIC_INTERESTS = {
+    "activities",
+    "beaches",
+    "food",
+    "hotels",
+    "museums",
+    "nature",
+    "parks",
+    "restaurants",
+    "resorts",
+    "shopping",
+    "temples",
+    "tourist places",
+}
+
 
 # 1. Validate Trip Details
 def validate_travel_plan(destination, days, budget, travelers):
@@ -46,30 +90,31 @@ def calculate_daily_person_budget(budget, days, travelers):
     return round(budget / days / travelers, 2)
 
 
+def distribute_items(items, days):
+    day_items = [[] for _ in range(days)]
+    if not items:
+        return day_items
+
+    for index, item in enumerate(items):
+        day_index = min(index * days // len(items), days - 1)
+        day_items[day_index].append(item)
+
+    return day_items
+
+
 # 4. Create Day-by-Day Itinerary
 def create_itinerary(trip):
-    itinerary = []
-    places = trip["places"]
-    activities = trip["activities"]
+    places_by_day = distribute_items(trip["places"], trip["days"])
+    activities_by_day = distribute_items(trip["activities"], trip["days"])
 
-    for day in range(1, trip["days"] + 1):
-        day_plan = {
+    return [
+        {
             "day": day,
-            "places": [],
-            "activities": []
+            "places": places_by_day[day - 1],
+            "activities": activities_by_day[day - 1],
         }
-
-        if places:
-            day_plan["places"] = [places[(day - 1) % len(places)]]
-
-        if activities:
-            day_plan["activities"] = [
-                activities[(day - 1) % len(activities)]
-            ]
-
-        itinerary.append(day_plan)
-
-    return itinerary
+        for day in range(1, trip["days"] + 1)
+    ]
 
 
 # 5. Generate Recommendations
@@ -82,7 +127,8 @@ def generate_recommendations(destination, places, activities):
         )
     else:
         recommendations.append(
-            f"Research popular tourist places in {destination}."
+            f"No curated place suggestions are available for {destination}. "
+            "Add places you have researched to personalize each day."
         )
 
     if activities:
@@ -131,6 +177,26 @@ def generate_travel_plan(
         activities=activities
     )
 
+    curated_suggestions = DESTINATION_SUGGESTIONS.get(
+        trip["destination"].strip().casefold()
+    )
+    if curated_suggestions and not trip["places"]:
+        trip["places"] = [suggestion["place"] for suggestion in curated_suggestions]
+        custom_activities = [
+            activity
+            for activity in trip["activities"]
+            if activity.strip().casefold() not in GENERIC_INTERESTS
+        ]
+        trip["activities"] = custom_activities or [
+            suggestion["activity"] for suggestion in curated_suggestions
+        ]
+    else:
+        trip["activities"] = [
+            activity
+            for activity in trip["activities"]
+            if activity.strip().casefold() not in GENERIC_INTERESTS
+        ]
+
     trip["itinerary"] = create_itinerary(trip)
 
     trip["recommendations"] = generate_recommendations(
@@ -138,6 +204,11 @@ def generate_travel_plan(
         trip["places"],
         trip["activities"]
     )
+    if curated_suggestions and not places:
+        trip["recommendations"].append(
+            "These are curated suggestions, not live availability information. "
+            "Check current opening hours and access before visiting."
+        )
 
     trip["budget_summary"] = generate_budget_summary(
         trip["budget"],
