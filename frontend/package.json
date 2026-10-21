@@ -9,6 +9,7 @@
     "dev": "vite dev --port 5173",
     "generate-routes": "tsr generate",
     "build": "vite build",
+    "start": "node .output/server/index.mjs",
     "preview": "vite preview",
     "lint": "eslint src",
     "format": "prettier --write . && eslint --fix",
