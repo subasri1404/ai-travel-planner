@@ -28,7 +28,8 @@ from database.database import (
     create_tables,
     create_users_table,
     add_user_id_to_trips,
-    add_idempotency_key_to_trips
+    add_idempotency_key_to_trips,
+    user_exists
 )
 
 
@@ -58,6 +59,12 @@ def get_current_user(
         raise HTTPException(
             status_code=401,
             detail="Invalid or expired token"
+        )
+
+    if not user_exists(user_id):
+        raise HTTPException(
+            status_code=401,
+            detail="Authenticated user no longer exists"
         )
 
     return user_id

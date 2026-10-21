@@ -37,6 +37,17 @@ def create_users_table():
         connection.close()
 
 
+def user_exists(user_id):
+    connection = get_db_connection()
+    try:
+        return connection.execute(
+            "SELECT 1 FROM users WHERE id = ?",
+            (user_id,)
+        ).fetchone() is not None
+    finally:
+        connection.close()
+
+
 
         
 def create_tables():
