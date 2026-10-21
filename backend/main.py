@@ -88,6 +88,7 @@ default_origins = [
     "http://127.0.0.1:5173",
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+    "https://ai-travel-planner-frontend-new.onrender.com",
 ]
 configured_origins = os.getenv("CORS_ORIGINS")
 allowed_origins = [
